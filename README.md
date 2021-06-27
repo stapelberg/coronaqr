@@ -1,7 +1,12 @@
 # Go Corona QR Code Decoder
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/stapelberg/coronaqr.svg)](https://pkg.go.dev/github.com/stapelberg/coronaqr)
+
 This repository contains a decoder for EU Digital COVID Certificate (EUDCC) QR
 code data, written in Go.
+
+If you got vaccinated and want to know what is stored in the QR code, this
+package (and example program) can answer that question!
 
 Example usage:
 ```
