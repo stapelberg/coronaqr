@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	code, err := io.ReadAll(os.Stdin)
+	code, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		log.Fatalf("could not read from stdin: %v", err)
 	}
