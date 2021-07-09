@@ -1,45 +1,270 @@
 package coronaqr
 
 import (
+	"bytes"
+	"crypto"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-// From https://github.com/eu-digital-green-certificates/dgc-testdata/blob/main/CH/png/1.png
-const qr = `HC1:NCFK60DG0/3WUWGSLKH47GO0Y%5S.PK%96L79CK-500XK0JCV494F3TJMP:92F3%EQ*8QY50.FK6ZK7:EDOLOPCO8F6%E3.DA%EOPC1G72A6YM88G7ZA71S8WA7N46.G8DM8-Q6RG8I:66:63Y8WY8UPC0JCZ69FVCPD0LVC6JD846Y96C463W5307+EDG8F3I80/D6$CBECSUER:C2$NS346$C2%E9VC- CSUE145GB8JA5B$D% D3IA4W5646646-96:96.JCP9EJY8L/5M/5546.96SF63KC.SC4KCD3DX47B46IL6646H*6Z/ER2DD46JH8946JPCT3E5JDLA7$Q69464W51S6..DX%DZJC2/DYOA$$E5$C JC3/D9Z95LEZED1ECW.C8WE2OA3ZAGY8MPCG/DU2DRB8MTA8+9$PC5$CUZC $5Z$5FBBS20I8MRXI1VMCJCRM8BGJZ+FQ5G%V3H4RRC7L56BV5H3N6+9VDKW UU EI+K8KHAXSCMRBG0MEQCKGKBPEYIA2K8FB3MQ9Z875H06C+$53.CX3F4YFKAFUFC7/4$C98A2FPNFD8*MLTI3Z/BZ2IWT4 9L THNN1+9N89NMW306JNI353IG6U7:8GG7MFI$P9LWQ8UNOXPVJ7U*SWSOEDH4ES%3ULH2F*7K4F9V7RYSZ$7G U3BIZ3HE42RI19D2R9TYQ2WZ94LM0/MBO9 53OO0WLLRIAVXFD/VD5GI P/U8 HKPPTRADR+H3SC6KQAG4 HUPHFZPBK%50+3L:1065K/E91W*-D35SI%V3L3J%MO+4USO-AILPI4IMA.1Q0V0HVVV8P4`
+func chFromFile(fn string) (*x509.Certificate, []byte, error) {
+	b, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return nil, nil, err
+	}
+	cert, err := x509.ParseCertificate(b)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cert, calculateKid(b), nil
+}
 
-func TestDecode(t *testing.T) {
-	decoded, err := Decode(qr)
+// “RAW Data File” as per
+// https://github.com/eu-digital-green-certificates/dgc-testdata
+type rawTestdata struct {
+	JSON       CovidCert `json:"JSON"`
+	CBOR       string    `json:"CBOR"`
+	COSE       string    `json:"COSE"`
+	Compressed string    `json:"COMPRESSED"`
+	Base45     string    `json:"BASE45"`
+	Prefix     string    `json:"PREFIX"`
+	TwoDCode   string    `json:"2DCODE"`
+	Testctx    struct {
+		Version         int      `json:"VERSION"`
+		Schema          string   `json:"SCHEMA"`
+		Certificate     string   `json:"CERTIFICATE"` // base64-encoded
+		ValidationClock string   `json:"VALIDATIONCLOCK"`
+		Description     string   `json:"DESCRIPTION"`
+		GatewayEnv      []string `json:"GATEWAY-ENV"`
+	} `json:"TESTCTX"`
+	ExpectedResults struct {
+		ValidObject      bool `json:"EXPECTEDVALIDOBJECT"`
+		SchemaValidation bool `json:"EXPECTEDSCHEMAVALIDATION"`
+		Encode           bool `json:"EXPECTEDENCODE"`
+		Decode           bool `json:"EXPECTEDDECODE"`
+		Verify           bool `json:"EXPECTEDVERIFY"`
+		Compression      bool `json:"EXPECTEDCOMPRESSION"`
+		KeyUsage         bool `json:"EXPECTEDKEYUSAGE"`
+		Unprefix         bool `json:"EXPECTEDUNPREFIX"`
+		ValidJSON        bool `json:"EXPECTEDVALIDJSON"`
+		B45Decode        bool `json:"EXPECTEDB45DECODE"`
+		PictureDecode    bool `json:"EXPECTEDPICTUREDECODE"`
+		ExpirationCheck  bool `json:"EXPECTEDEXPIRATIONCHECK"`
+	} `json:"EXPECTEDRESULTS"`
+}
+
+func testInteropDecode(t *testing.T, tt rawTestdata) {
+	t.Helper()
+	if !tt.ExpectedResults.Decode {
+		return
+	}
+
+	certB, err := base64.StdEncoding.DecodeString(tt.Testctx.Certificate)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := decoded.Cert
-	want := CovidCert{
-		Version: "1.2.1",
-		PersonalName: Name{
-			FamilyName:    "Studer",
-			FamilyNameStd: "STUDER",
-			GivenName:     "Martina",
-			GivenNameStd:  "MARTINA",
-		},
-		DateOfBirth: "1964-03-14",
-		VaccineRecords: []VaccineRecord{
-			VaccineRecord{
-				Target:        "840539006",
-				Vaccine:       "J07BX03",
-				Product:       "EU/1/20/1525",
-				Manufacturer:  "ORG-100001417",
-				Doses:         2,
-				DoseSeries:    2,
-				Date:          "2021-06-07",
-				Country:       "CH",
-				Issuer:        "Bundesamt für Gesundheit (BAG)",
-				CertificateID: "urn:uvci:01:CH:79DD59A0ABBC341B37D78EEE",
-			},
-		},
+
+	kid := calculateKid(certB)
+
+	cert, err := x509.ParseCertificate(certB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unverified, err := Decode(tt.Prefix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := unverified.Verify(&singleCertificateProvider{
+		cert: cert,
+		kid:  kid,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(tt.JSON, decoded.Cert); diff != "" {
+		t.Errorf("Decode: unexpected diff: (-want +got):\n%s", diff)
+	}
+}
+
+func testInteropUnprefix(t *testing.T, tt rawTestdata) {
+	t.Helper()
+	if !tt.ExpectedResults.Unprefix {
+		return
+	}
+	base45 := unprefix(tt.Prefix)
+	if diff := cmp.Diff(tt.Base45, base45); diff != "" {
+		t.Errorf("unprefix: unexpected diff: (-want +got):\n%s", diff)
+	}
+}
+
+func testInteropB45Decode(t *testing.T, tt rawTestdata) {
+	t.Helper()
+	if !tt.ExpectedResults.B45Decode {
+		return
+	}
+	decoded, err := base45decode(tt.Base45)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decoded
+	var want []byte
+	if tt.Compressed != "" {
+		var err error
+		want, err = hex.DecodeString(tt.Compressed)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		decompressed, err := decompress(decoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = decompressed
+
+		want, err = hex.DecodeString(tt.COSE)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("unexpected Decode() output: diff (-want +got):\n%s", diff)
+		t.Errorf("base45decode: unexpected diff: (-want +got):\n%s", diff)
+	}
+}
+
+func testInteropDecompress(t *testing.T, tt rawTestdata) {
+	t.Helper()
+	if !tt.ExpectedResults.Compression {
+		return
+	}
+	compressed, err := hex.DecodeString(tt.Compressed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decompressed, err := decompress(compressed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want, err := hex.DecodeString(tt.COSE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, decompressed); diff != "" {
+		t.Errorf("decompress: unexpected diff: (-want +got):\n%s", diff)
+	}
+}
+
+type singleCertificateProvider struct {
+	cert *x509.Certificate
+	kid  []byte
+}
+
+func (p *singleCertificateProvider) GetCertificate(country string, kid []byte) (crypto.PublicKey, error) {
+	if !bytes.Equal(p.kid, kid) {
+		return nil, fmt.Errorf("no such certificate (%s, %x): got %x", country, kid, p.kid)
+	}
+	return p.cert.PublicKey, nil
+}
+
+func testInteropVerify(t *testing.T, tt rawTestdata) {
+	t.Helper()
+	if !tt.ExpectedResults.Verify {
+		return
+	}
+	cose, err := hex.DecodeString(tt.COSE)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unverified, err := decodeCOSE(cose)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	certB, err := base64.StdEncoding.DecodeString(tt.Testctx.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kid := calculateKid(certB)
+
+	cert, err := x509.ParseCertificate(certB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := unverified.Verify(&singleCertificateProvider{
+		cert: cert,
+		kid:  kid,
+	}); err != nil {
+		t.Errorf("Verify: %v", err)
+	}
+}
+
+func testInteropExpectations(t *testing.T, tt rawTestdata) {
+	t.Helper()
+
+	//spew.Dump(tt)
+	// TODO: we should check for each of these bools if they were unset (test
+	// should not run), false (test should fail) or true (test should succeed).
+
+	// 1. Load the picture and extract the prefixed BASE45content
+	// testInteropPictureDecode(t, tt)
+
+	// 2. Load Prefix Object from RAW Content and remove the prefix. Validate
+	// against the BASE45 raw content.
+	testInteropUnprefix(t, tt)
+
+	// TODO: this is wrong, should be compared against COMPRESSED for now?
+	// 3. Decode the BASE45 RAW Content and validate the COSE content against
+	// the RAW content.
+	testInteropB45Decode(t, tt)
+
+	// 9. The value given in COMPRESSED has to be decompressed by zlib and must
+	// match to the value given in COSE.
+	testInteropDecompress(t, tt)
+
+	// 4. Check the EXP Field for expiring against the VALIDATIONCLOCK time.
+	// TODO: which field is meant here?
+
+	// 5. Verify the signature of the COSE Object against the JWK Public Key.
+	testInteropVerify(t, tt)
+
+	// TODO: 6, 8
+
+	// 7. Transform CBOR into JSON and validate against the RAW JSON content.
+	testInteropDecode(t, tt)
+}
+
+func TestInterop(t *testing.T) {
+	for _, country := range []string{"CH", "RO", "HR", "LU" /*, "common"*/} {
+		matches, err := filepath.Glob("testdata/dgc-testdata/" + country + "/2DCode/raw/*.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, match := range matches {
+			t.Run(match, func(t *testing.T) {
+				b, err := ioutil.ReadFile(match)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var tt rawTestdata
+				if err := json.Unmarshal(b, &tt); err != nil {
+					t.Fatal(err)
+				}
+				testInteropExpectations(t, tt)
+			})
+		}
 	}
 }

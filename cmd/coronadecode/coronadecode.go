@@ -19,5 +19,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not decode certificate QR code: %v", err)
 	}
-	spew.Dump(decoded)
+	spew.Dump(decoded.SkipVerification())
 }
