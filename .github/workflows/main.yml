@@ -20,6 +20,8 @@ jobs:
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
+      with:
+        submodules: recursive
 
     - name: Ensure all files were formatted as per gofmt
       run: |
