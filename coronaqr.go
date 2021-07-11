@@ -196,6 +196,14 @@ func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
 		}
 	}
 
+	alg := u.p.Alg // protected header
+	if alg == 0 {
+		// fall back to alg (4) from unprotected header
+		if b, ok := u.v.Unprotected[uint64(1)]; ok {
+			alg = int(b.(int64))
+		}
+	}
+
 	const country = "CH" // TODO: use country from claims
 	cert, err := certprov.GetCertificate(country, kid)
 	if err != nil {
@@ -208,12 +216,12 @@ func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
 
 	// COSE algorithm parameter ES256
 	// https://datatracker.ietf.org/doc/draft-ietf-cose-rfc8152bis-algs/12/
-	if u.p.Alg == -37 {
+	if alg == -37 {
 		verifier.Alg = cose.PS256
-	} else if u.p.Alg == -7 {
+	} else if alg == -7 {
 		verifier.Alg = cose.ES256
 	} else {
-		return fmt.Errorf("unknown alg: %d", u.p.Alg)
+		return fmt.Errorf("unknown alg: %d", alg)
 	}
 
 	// We need to use custom verification code instead of the existing Go COSE
@@ -261,17 +269,19 @@ type claims struct {
 func decodeCOSE(coseData []byte) (*unverifiedCOSE, error) {
 	var v signedCWT
 	if err := cbor.Unmarshal(coseData, &v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cbor.Unmarshal: %v", err)
 	}
 
 	var p coseHeader
-	if err := cbor.Unmarshal(v.Protected, &p); err != nil {
-		return nil, err
+	if len(v.Protected) > 0 {
+		if err := cbor.Unmarshal(v.Protected, &p); err != nil {
+			return nil, fmt.Errorf("cbor.Unmarshal(v.Protected): %v", err)
+		}
 	}
 
 	var c claims
 	if err := cbor.Unmarshal(v.Payload, &c); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cbor.Unmarshal(v.Payload): %v", err)
 	}
 
 	return &unverifiedCOSE{

@@ -241,7 +241,7 @@ func testInteropExpectations(t *testing.T, tt rawTestdata) {
 }
 
 func TestInterop(t *testing.T) {
-	for _, country := range []string{"CH", "RO", "HR", "LU" /*, "common"*/} {
+	for _, country := range []string{"CH", "RO", "HR", "LU", "common"} {
 		matches, err := filepath.Glob("testdata/dgc-testdata/" + country + "/2DCode/raw/*.json")
 		if err != nil {
 			t.Fatal(err)
