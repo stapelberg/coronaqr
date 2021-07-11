@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -61,6 +62,16 @@ type rawTestdata struct {
 	} `json:"EXPECTEDRESULTS"`
 }
 
+func (r *rawTestdata) ExpiredFunc() func(time.Time) bool {
+	now, err := time.Parse(time.RFC3339, r.Testctx.ValidationClock)
+	if err != nil {
+		panic(err)
+	}
+	return func(expiration time.Time) bool {
+		return now.After(expiration)
+	}
+}
+
 func testInteropDecode(t *testing.T, tt rawTestdata) {
 	if !tt.ExpectedResults.Decode {
 		return
@@ -78,7 +89,8 @@ func testInteropDecode(t *testing.T, tt rawTestdata) {
 		t.Fatal(err)
 	}
 
-	unverified, err := Decode(tt.Prefix)
+	d := &Decoder{Expired: tt.ExpiredFunc()}
+	unverified, err := d.Decode(tt.Prefix)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +218,7 @@ func testInteropVerify(t *testing.T, tt rawTestdata) {
 		t.Fatal(err)
 	}
 
-	if err := unverified.Verify(&singleCertificateProvider{
+	if err := unverified.verify(tt.ExpiredFunc(), &singleCertificateProvider{
 		cert: cert,
 		kid:  kid,
 	}); err != nil {

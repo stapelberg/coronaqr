@@ -56,11 +56,11 @@ func sigStructure(protectedEncoded, payload []byte) ([]byte, error) {
 		payload)
 }
 
-var ErrUnavailableHashFunc = errors.New("hash function is not available")
+var errUnavailableHashFunc = errors.New("hash function is not available")
 
 func hashSigStructure(ToBeSigned []byte, hash crypto.Hash) (digest []byte, err error) {
 	if !hash.Available() {
-		return nil, ErrUnavailableHashFunc
+		return nil, errUnavailableHashFunc
 	}
 	hasher := hash.New()
 	_, _ = hasher.Write(ToBeSigned) // Write() on hash never fails

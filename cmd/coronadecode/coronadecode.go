@@ -14,6 +14,15 @@ import (
 	"github.com/stapelberg/coronaqr/trustlist/trustlistmirror"
 )
 
+func printCertificate(decoded *coronaqr.Decoded) {
+	fmt.Printf("\n")
+	fmt.Printf("COVID certificate:\n")
+	fmt.Printf("Issued:     %v\n", decoded.IssuedAt)
+	fmt.Printf("Expiration: %v\n", decoded.Expiration)
+	fmt.Printf("Contents:   ")
+	spew.Dump(decoded.Cert)
+}
+
 func main() {
 	var (
 		verify    = flag.Bool("verify", false, "verify the signature in addition to decoding")
@@ -31,7 +40,8 @@ func main() {
 		log.Fatalf("could not decode certificate QR code: %v", err)
 	}
 	if !*verify {
-		spew.Dump(unverified.SkipVerification())
+		fmt.Printf("Cryptographic signature check skipped (use -verify)\n")
+		printCertificate(unverified.SkipVerification())
 		return
 	}
 	list := trustlistmirror.TrustlistDE
@@ -54,6 +64,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("verification failed: %v", err)
 	}
-	spew.Dump(decoded)
-	fmt.Printf("verification succeeded!\n")
+	if cert := decoded.SignedBy; cert == nil {
+		fmt.Printf("Cryptographic signature successfully verified\n")
+	} else {
+		fmt.Printf("Cryptographic signature successfully verified from:\n")
+		fmt.Printf("  %v\n", cert.Issuer)
+	}
+
+	printCertificate(decoded)
 }

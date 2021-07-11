@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/fxamacker/cbor/v2"
 	"github.com/minvws/base45-go/eubase45"
@@ -24,9 +25,14 @@ import (
 // Decoded is a EU Digital COVID Certificate (EUDCC) that has been decoded and
 // possibly verified.
 type Decoded struct {
-	Cert CovidCert
+	Cert       CovidCert
+	IssuedAt   time.Time
+	Expiration time.Time
 
-	// TODO: Include metadata, e.g. certificate timestamp and expiration.
+	// SignedBy is the x509 certificate whose signature of the COVID Certificate
+	// has been successfully verified, if Verify() was used and the trustlist
+	// makes available certificates (as opposed to just public keys).
+	SignedBy *x509.Certificate
 }
 
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema
@@ -172,6 +178,7 @@ type unverifiedCOSE struct {
 	v      signedCWT
 	p      coseHeader
 	claims claims
+	cert   *x509.Certificate // set after verification
 }
 
 // PublicKeyProvider is typically implemented using a JSON Web Key Set, or by
@@ -201,7 +208,7 @@ type CertificateProvider interface {
 	GetCertificate(country string, kid []byte) (*x509.Certificate, error)
 }
 
-func (u *unverifiedCOSE) Verify(certprov PublicKeyProvider) error {
+func (u *unverifiedCOSE) verify(expired func(time.Time) bool, certprov PublicKeyProvider) error {
 	kid := u.p.Kid // protected header
 	if len(kid) == 0 {
 		// fall back to kid (4) from unprotected header
@@ -222,6 +229,14 @@ func (u *unverifiedCOSE) Verify(certprov PublicKeyProvider) error {
 	pubKey, err := certprov.GetPublicKey(country, kid)
 	if err != nil {
 		return err
+	}
+
+	if certprov, ok := certprov.(CertificateProvider); ok {
+		cert, err := certprov.GetCertificate(country, kid)
+		if err != nil {
+			return err
+		}
+		u.cert = cert
 	}
 
 	verifier := &cose.Verifier{
@@ -260,9 +275,21 @@ func (u *unverifiedCOSE) Verify(certprov PublicKeyProvider) error {
 		return err
 	}
 
-	// TODO: check expiration timestamp, too
+	expiration := time.Unix(u.claims.Exp, 0)
+	if expired(expiration) {
+		return fmt.Errorf("certificate has expired")
+	}
 
 	return nil
+}
+
+func (u *unverifiedCOSE) decoded() *Decoded {
+	return &Decoded{
+		Cert:       u.claims.HCert.DCC,
+		SignedBy:   u.cert,
+		IssuedAt:   time.Unix(u.claims.Iat, 0),
+		Expiration: time.Unix(u.claims.Exp, 0),
+	}
 }
 
 type hcert struct {
@@ -273,9 +300,9 @@ type claims struct {
 	Iss   string `cbor:"1,keyasint"`
 	Sub   string `cbor:"2,keyasint"`
 	Aud   string `cbor:"3,keyasint"`
-	Exp   int    `cbor:"4,keyasint"`
+	Exp   int64  `cbor:"4,keyasint"`
 	Nbf   int    `cbor:"5,keyasint"`
-	Iat   int    `cbor:"6,keyasint"`
+	Iat   int64  `cbor:"6,keyasint"`
 	Cti   []byte `cbor:"7,keyasint"`
 	HCert hcert  `cbor:"-260,keyasint"`
 }
@@ -308,13 +335,14 @@ func decodeCOSE(coseData []byte) (*unverifiedCOSE, error) {
 // Unverified is a EU Digital COVID Certificate (EUDCC) that was decoded, but
 // not yet verified.
 type Unverified struct {
-	u *unverifiedCOSE
+	u       *unverifiedCOSE
+	decoder *Decoder
 }
 
 // SkipVerification skips all cryptographic signature verification and returns
 // the unverified certificate data.
 func (u *Unverified) SkipVerification() *Decoded {
-	return &Decoded{Cert: u.u.claims.HCert.DCC}
+	return u.u.decoded()
 }
 
 // Verify checks the cryptographic signature and returns the verified EU Digital
@@ -322,17 +350,27 @@ func (u *Unverified) SkipVerification() *Decoded {
 //
 // certprov can optionally implement the CertificateProvider interface.
 func (u *Unverified) Verify(certprov PublicKeyProvider) (*Decoded, error) {
-	if err := u.u.Verify(certprov); err != nil {
+	expired := u.decoder.Expired
+	if expired == nil {
+		expired = func(expiration time.Time) bool {
+			return time.Now().After(expiration)
+		}
+	}
+	if err := u.u.verify(expired, certprov); err != nil {
 		return nil, err
 	}
 
-	// TODO: fill in metadata regarding signature?
-	return &Decoded{Cert: u.u.claims.HCert.DCC}, nil
+	return u.u.decoded(), nil
+}
+
+// Decoder is a EU Digital COVID Certificate (EUDCC) decoder.
+type Decoder struct {
+	Expired func(time.Time) bool
 }
 
 // Decode decodes the specified EU Digital COVID Certificate (EUDCC) QR code
 // data.
-func Decode(qrdata string) (*Unverified, error) {
+func (d *Decoder) Decode(qrdata string) (*Unverified, error) {
 	if !strings.HasPrefix(qrdata, "HC1:") {
 		return nil, errors.New("data does not start with HC1: prefix")
 	}
@@ -353,7 +391,16 @@ func Decode(qrdata string) (*Unverified, error) {
 	}
 
 	return &Unverified{
-		u: unverified,
+		decoder: d,
+		u:       unverified,
 	}, nil
+}
 
+// DefaultDecoder is a ready-to-use Decoder.
+var DefaultDecoder = &Decoder{}
+
+// Decode decodes the specified EU Digital COVID Certificate (EUDCC) QR code
+// data.
+func Decode(qrdata string) (*Unverified, error) {
+	return DefaultDecoder.Decode(qrdata)
 }
