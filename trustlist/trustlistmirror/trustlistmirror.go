@@ -29,13 +29,13 @@ var (
 		decode: decodeDE,
 	}
 
-	// TrustlistDE refers to the mirrored version of the Austrian Trustlist.
+	// TrustlistAT refers to the mirrored version of the Austrian Trustlist.
 	TrustlistAT = &List{
 		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_at.min.json",
 		decode: decodeDE,
 	}
 
-	// TrustlistDE refers to the mirrored version of the French Trustlist.
+	// TrustlistFR refers to the mirrored version of the French Trustlist.
 	TrustlistFR = &List{
 		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_fr.min.json",
 		decode: decodeFR,
