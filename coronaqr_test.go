@@ -62,7 +62,6 @@ type rawTestdata struct {
 }
 
 func testInteropDecode(t *testing.T, tt rawTestdata) {
-	t.Helper()
 	if !tt.ExpectedResults.Decode {
 		return
 	}
@@ -97,7 +96,6 @@ func testInteropDecode(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropUnprefix(t *testing.T, tt rawTestdata) {
-	t.Helper()
 	if !tt.ExpectedResults.Unprefix {
 		return
 	}
@@ -108,7 +106,6 @@ func testInteropUnprefix(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropB45Decode(t *testing.T, tt rawTestdata) {
-	t.Helper()
 	if !tt.ExpectedResults.B45Decode {
 		return
 	}
@@ -142,7 +139,6 @@ func testInteropB45Decode(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropDecompress(t *testing.T, tt rawTestdata) {
-	t.Helper()
 	if !tt.ExpectedResults.Compression {
 		return
 	}
@@ -178,7 +174,6 @@ func (p *singleCertificateProvider) GetCertificate(country string, kid []byte) (
 }
 
 func testInteropVerify(t *testing.T, tt rawTestdata) {
-	t.Helper()
 	if !tt.ExpectedResults.Verify {
 		return
 	}
@@ -189,7 +184,7 @@ func testInteropVerify(t *testing.T, tt rawTestdata) {
 
 	unverified, err := decodeCOSE(cose)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("decodeCOSE(%x): %v", cose, err)
 	}
 
 	certB, err := base64.StdEncoding.DecodeString(tt.Testctx.Certificate)
@@ -213,8 +208,6 @@ func testInteropVerify(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropExpectations(t *testing.T, tt rawTestdata) {
-	t.Helper()
-
 	//spew.Dump(tt)
 	// TODO: we should check for each of these bools if they were unset (test
 	// should not run), false (test should fail) or true (test should succeed).
@@ -257,11 +250,11 @@ func TestInterop(t *testing.T) {
 			t.Run(match, func(t *testing.T) {
 				b, err := ioutil.ReadFile(match)
 				if err != nil {
-					t.Fatal(err)
+					t.Fatalf("ReadFile(%s): %v", match, err)
 				}
 				var tt rawTestdata
 				if err := json.Unmarshal(b, &tt); err != nil {
-					t.Fatal(err)
+					t.Fatalf("Unmarshal: %v", err)
 				}
 				testInteropExpectations(t, tt)
 			})
