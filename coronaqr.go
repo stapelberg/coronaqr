@@ -202,16 +202,6 @@ func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
 		return err
 	}
 
-	msgHeaders := &cose.Headers{}
-	if err := msgHeaders.Decode([]interface{}{u.v.Protected, u.v.Unprotected}); err != nil {
-		return fmt.Errorf("cbor: %s", err.Error())
-	}
-
-	msg := cose.NewSign1Message()
-	msg.Headers = msgHeaders
-	msg.Payload = u.v.Payload
-	msg.Signature = u.v.Signature
-
 	verifier := &cose.Verifier{
 		PublicKey: cert,
 	}
@@ -226,8 +216,25 @@ func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
 		return fmt.Errorf("unknown alg: %d", u.p.Alg)
 	}
 
-	external := []byte{} // []byte(nil) fails verification -.-
-	if err := msg.Verify(external, *verifier); err != nil {
+	// We need to use custom verification code instead of the existing Go COSE
+	// packages:
+	//
+	// - go.mozilla.org/cose lacks sign1 support
+	//
+	// - github.com/veraison/go-cose is a fork which adds sign1 support, but
+	//   re-encodes protected headers during signature verification, which does
+	//   not pass e.g. dgc-testdata/common/2DCode/raw/CO1.json
+	toBeSigned, err := sigStructure(u.v.Protected, u.v.Payload)
+	if err != nil {
+		return err
+	}
+
+	digest, err := hashSigStructure(toBeSigned, verifier.Alg.HashFunc)
+	if err != nil {
+		return err
+	}
+
+	if err := verifier.Verify(digest, u.v.Signature); err != nil {
 		return err
 	}
 
