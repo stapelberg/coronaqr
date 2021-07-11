@@ -38,3 +38,11 @@ curl -sL https://github.com/eu-digital-green-certificates/dgc-testdata/raw/main/
         zbarimg --quiet --raw - | \
         coronadecode -verify -trustlist=trustlistmirror/at
 ```
+
+## Compliance
+
+This implementation passes the positive interoperability tests ✅ of multiple
+countries provided in the
+https://github.com/eu-digital-green-certificates/dgc-testdata/ repository.
+
+Implementing the negative tests are tracked in https://github.com/stapelberg/coronaqr/issues/2
