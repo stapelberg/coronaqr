@@ -10,6 +10,7 @@ import (
 	"compress/zlib"
 	"crypto"
 	"crypto/sha256"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -173,6 +174,19 @@ type unverifiedCOSE struct {
 	claims claims
 }
 
+// PublicKeyProvider is typically implemented using a JSON Web Key Set, or by
+// pinning a specific government certificate.
+type PublicKeyProvider interface {
+	// GetPublicKey returns the public key of the certificate for the specified
+	// key identifier (or country), or an error if the public key was not found.
+	//
+	// Country is a ISO 3166 alpha-2 code, e.g. CH.
+	//
+	// kid are the first 8 bytes of the SHA256 digest of the certificate in DER
+	// encoding.
+	GetPublicKey(country string, kid []byte) (crypto.PublicKey, error)
+}
+
 // CertificateProvider is typically implemented using a JSON Web Key Set, or by
 // pinning a specific government certificate.
 type CertificateProvider interface {
@@ -184,10 +198,10 @@ type CertificateProvider interface {
 	//
 	// kid are the first 8 bytes of the SHA256 digest of the certificate in DER
 	// encoding.
-	GetCertificate(country string, kid []byte) (crypto.PublicKey, error)
+	GetCertificate(country string, kid []byte) (*x509.Certificate, error)
 }
 
-func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
+func (u *unverifiedCOSE) Verify(certprov PublicKeyProvider) error {
 	kid := u.p.Kid // protected header
 	if len(kid) == 0 {
 		// fall back to kid (4) from unprotected header
@@ -205,13 +219,13 @@ func (u *unverifiedCOSE) Verify(certprov CertificateProvider) error {
 	}
 
 	const country = "CH" // TODO: use country from claims
-	cert, err := certprov.GetCertificate(country, kid)
+	pubKey, err := certprov.GetPublicKey(country, kid)
 	if err != nil {
 		return err
 	}
 
 	verifier := &cose.Verifier{
-		PublicKey: cert,
+		PublicKey: pubKey,
 	}
 
 	// COSE algorithm parameter ES256
@@ -305,7 +319,9 @@ func (u *Unverified) SkipVerification() *Decoded {
 
 // Verify checks the cryptographic signature and returns the verified EU Digital
 // COVID Certificate (EUDCC) or an error if verification fails.
-func (u *Unverified) Verify(certprov CertificateProvider) (*Decoded, error) {
+//
+// certprov can optionally implement the CertificateProvider interface.
+func (u *Unverified) Verify(certprov PublicKeyProvider) (*Decoded, error) {
 	if err := u.u.Verify(certprov); err != nil {
 		return nil, err
 	}

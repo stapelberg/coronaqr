@@ -19,7 +19,7 @@ import (
 // A List refers to a mirrored version of an EU member states Trustlist.
 type List struct {
 	URL    string
-	decode func(body []byte) (coronaqr.CertificateProvider, error)
+	decode func(body []byte) (coronaqr.PublicKeyProvider, error)
 }
 
 var (
@@ -42,15 +42,24 @@ var (
 	}
 )
 
-// certificateProvider implements the coronaqr.certificateProvider interface.
 type certificateProvider struct {
 	certs map[string]*x509.Certificate
 }
 
-func (c *certificateProvider) GetCertificate(_ string, kid []byte) (crypto.PublicKey, error) {
+// GetPublicKey implements the coronaqr.PublicKeyProvider interface.
+func (c *certificateProvider) GetPublicKey(_ string, kid []byte) (crypto.PublicKey, error) {
 	kidNormalized := base64.StdEncoding.EncodeToString(kid)
 	if cert, ok := c.certs[kidNormalized]; ok {
 		return cert.PublicKey, nil
+	}
+	return nil, fmt.Errorf("public key for kid=%s not found", kidNormalized)
+}
+
+// GetCertificate implements the coronaqr.CertificateProvider interface.
+func (c *certificateProvider) GetCertificate(_ string, kid []byte) (*x509.Certificate, error) {
+	kidNormalized := base64.StdEncoding.EncodeToString(kid)
+	if cert, ok := c.certs[kidNormalized]; ok {
+		return cert, nil
 	}
 	return nil, fmt.Errorf("certificate for kid=%s not found", kidNormalized)
 }
@@ -60,7 +69,7 @@ func (c *certificateProvider) String() string {
 	return fmt.Sprintf("%d certificates", len(c.certs))
 }
 
-func decodeDE(body []byte) (coronaqr.CertificateProvider, error) {
+func decodeDE(body []byte) (coronaqr.PublicKeyProvider, error) {
 	type certificate struct {
 		Kid     string `json:"kid"`
 		RawData string `json:"rawData"`
@@ -97,19 +106,20 @@ type frenchCertificateProvider struct {
 	pubKeys map[string]crypto.PublicKey
 }
 
-func (c *frenchCertificateProvider) GetCertificate(_ string, kid []byte) (crypto.PublicKey, error) {
+// GetPublicKey implements the coronaqr.PublicKeyProvider interface.
+func (c *frenchCertificateProvider) GetPublicKey(_ string, kid []byte) (crypto.PublicKey, error) {
 	kidNormalized := base64.StdEncoding.EncodeToString(kid)
 	if pubKey, ok := c.pubKeys[kidNormalized]; ok {
 		return pubKey, nil
 	}
-	return nil, fmt.Errorf("certificate for kid=%s not found", kidNormalized)
+	return nil, fmt.Errorf("public key for kid=%s not found", kidNormalized)
 }
 
 func (c *frenchCertificateProvider) String() string {
 	return fmt.Sprintf("%d public keys", len(c.pubKeys))
 }
 
-func decodeFR(body []byte) (coronaqr.CertificateProvider, error) {
+func decodeFR(body []byte) (coronaqr.PublicKeyProvider, error) {
 	type certificate struct {
 		PublicKeyPEM string `json:"publicKeyPEM"`
 	}
@@ -142,7 +152,7 @@ func decodeFR(body []byte) (coronaqr.CertificateProvider, error) {
 // NewCertificateProvider downloads the specified TrustList over the internet
 // (usually a few hundred kilobytes in size) and returns a CertificateProvider
 // to use for verifying covid certificates.
-func NewCertificateProvider(ctx context.Context, list *List) (coronaqr.CertificateProvider, error) {
+func NewCertificateProvider(ctx context.Context, list *List) (coronaqr.PublicKeyProvider, error) {
 	req, err := http.NewRequest("GET", list.URL, nil)
 	if err != nil {
 		return nil, err

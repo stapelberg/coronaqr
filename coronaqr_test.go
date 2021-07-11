@@ -166,11 +166,18 @@ type singleCertificateProvider struct {
 	kid  []byte
 }
 
-func (p *singleCertificateProvider) GetCertificate(country string, kid []byte) (crypto.PublicKey, error) {
+func (p *singleCertificateProvider) GetPublicKey(country string, kid []byte) (crypto.PublicKey, error) {
 	if !bytes.Equal(p.kid, kid) {
 		return nil, fmt.Errorf("no such certificate (%s, %x): got %x", country, kid, p.kid)
 	}
 	return p.cert.PublicKey, nil
+}
+
+func (p *singleCertificateProvider) GetCertificate(country string, kid []byte) (*x509.Certificate, error) {
+	if !bytes.Equal(p.kid, kid) {
+		return nil, fmt.Errorf("no such certificate (%s, %x): got %x", country, kid, p.kid)
+	}
+	return p.cert, nil
 }
 
 func testInteropVerify(t *testing.T, tt rawTestdata) {
