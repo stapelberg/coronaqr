@@ -40,6 +40,12 @@ var (
 		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_fr.min.json",
 		decode: decodeFR,
 	}
+
+	// TrustlistNL refers to the mirrored version of the Dutch Trustlist.
+	TrustlistNL = &List{
+		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_nl.raw.keys.json",
+		decode: decodeNL,
+	}
 )
 
 type certificateProvider struct {
@@ -101,13 +107,13 @@ func decodeDE(body []byte) (coronaqr.PublicKeyProvider, error) {
 	return &certificateProvider{certs: certs}, nil
 }
 
-// frenchCertificateProvider implements the coronaqr.CertificateProvider interface.
-type frenchCertificateProvider struct {
+// pubkeyOnlyCertificateProvider implements the coronaqr.CertificateProvider interface.
+type pubkeyOnlyCertificateProvider struct {
 	pubKeys map[string]crypto.PublicKey
 }
 
 // GetPublicKey implements the coronaqr.PublicKeyProvider interface.
-func (c *frenchCertificateProvider) GetPublicKey(_ string, kid []byte) (crypto.PublicKey, error) {
+func (c *pubkeyOnlyCertificateProvider) GetPublicKey(_ string, kid []byte) (crypto.PublicKey, error) {
 	kidNormalized := base64.StdEncoding.EncodeToString(kid)
 	if pubKey, ok := c.pubKeys[kidNormalized]; ok {
 		return pubKey, nil
@@ -115,7 +121,7 @@ func (c *frenchCertificateProvider) GetPublicKey(_ string, kid []byte) (crypto.P
 	return nil, fmt.Errorf("public key for kid=%s not found", kidNormalized)
 }
 
-func (c *frenchCertificateProvider) String() string {
+func (c *pubkeyOnlyCertificateProvider) String() string {
 	return fmt.Sprintf("%d public keys", len(c.pubKeys))
 }
 
@@ -146,7 +152,41 @@ func decodeFR(body []byte) (coronaqr.PublicKeyProvider, error) {
 		}
 		pubKeys[kidNormalized] = pub
 	}
-	return &frenchCertificateProvider{pubKeys: pubKeys}, nil
+	return &pubkeyOnlyCertificateProvider{pubKeys: pubKeys}, nil
+}
+
+func decodeNL(body []byte) (coronaqr.PublicKeyProvider, error) {
+	type certificate struct {
+		PublicKeyPEM string `json:"subjectPk"`
+	}
+	var certificates struct {
+		EUKeys map[string][]certificate `json:"eu_keys"`
+	}
+	if err := json.Unmarshal(body, &certificates); err != nil {
+		return nil, err
+	}
+	pubKeys := make(map[string]crypto.PublicKey)
+	for kid, certs := range certificates.EUKeys {
+		for _, cert := range certs {
+			// Normalize kid, might be shortened (padding with = characters).
+			kidB, err := base64.StdEncoding.DecodeString(kid)
+			if err != nil {
+				return nil, err
+			}
+			kidNormalized := base64.StdEncoding.EncodeToString(kidB)
+
+			certB, err := base64.StdEncoding.DecodeString(cert.PublicKeyPEM)
+			if err != nil {
+				return nil, err
+			}
+			pub, err := x509.ParsePKIXPublicKey(certB)
+			if err != nil {
+				return nil, err
+			}
+			pubKeys[kidNormalized] = pub
+		}
+	}
+	return &pubkeyOnlyCertificateProvider{pubKeys: pubKeys}, nil
 }
 
 // NewCertificateProvider downloads the specified TrustList over the internet
