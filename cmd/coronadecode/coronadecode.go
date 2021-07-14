@@ -54,6 +54,8 @@ func main() {
 		list = trustlistmirror.TrustlistFR
 	case "trustlistmirror/nl":
 		list = trustlistmirror.TrustlistNL
+	case "trustlistmirror/se":
+		list = trustlistmirror.TrustlistSE
 	default:
 		log.Fatalf("unknown -trustlist value: %q", *trustlist)
 	}

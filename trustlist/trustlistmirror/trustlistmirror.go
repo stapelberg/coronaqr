@@ -46,6 +46,12 @@ var (
 		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_nl.raw.keys.json",
 		decode: decodeNL,
 	}
+
+	// TrustlistSE refers to the mirrored version of the Swedish Trustlist.
+	TrustlistSE = &List{
+		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_se.min.json",
+		decode: decodeDE,
+	}
 )
 
 type certificateProvider struct {
