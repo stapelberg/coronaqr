@@ -132,8 +132,12 @@ func calculateKid(encodedCert []byte) []byte {
 	return result
 }
 
-func unprefix(prefixObject string) string {
-	return strings.TrimPrefix(prefixObject, "HC1:")
+func unprefix(prefixObject string) (string, error) {
+	if !strings.HasPrefix(prefixObject, "HC1:") {
+		return "", errors.New("data does not start with HC1: prefix")
+	}
+
+	return strings.TrimPrefix(prefixObject, "HC1:"), nil
 }
 
 func base45decode(encoded string) ([]byte, error) {
@@ -371,11 +375,12 @@ type Decoder struct {
 // Decode decodes the specified EU Digital COVID Certificate (EUDCC) QR code
 // data.
 func (d *Decoder) Decode(qrdata string) (*Unverified, error) {
-	if !strings.HasPrefix(qrdata, "HC1:") {
-		return nil, errors.New("data does not start with HC1: prefix")
+	unprefixed, err := unprefix(qrdata)
+	if err != nil {
+		return nil, err
 	}
 
-	compressed, err := base45decode(unprefix(qrdata))
+	compressed, err := base45decode(unprefixed)
 	if err != nil {
 		return nil, err
 	}

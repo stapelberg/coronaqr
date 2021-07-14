@@ -41,8 +41,6 @@ curl -sL https://github.com/eu-digital-green-certificates/dgc-testdata/raw/main/
 
 ## Compliance
 
-This implementation passes the positive interoperability tests ✅ of multiple
-countries provided in the
+This implementation passes the positive and negative interoperability tests ✅
+of multiple countries provided in the
 https://github.com/eu-digital-green-certificates/dgc-testdata/ repository.
-
-Implementing the negative tests are tracked in https://github.com/stapelberg/coronaqr/issues/2

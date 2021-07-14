@@ -47,18 +47,18 @@ type rawTestdata struct {
 		GatewayEnv      []string `json:"GATEWAY-ENV"`
 	} `json:"TESTCTX"`
 	ExpectedResults struct {
-		ValidObject      bool `json:"EXPECTEDVALIDOBJECT"`
-		SchemaValidation bool `json:"EXPECTEDSCHEMAVALIDATION"`
-		Encode           bool `json:"EXPECTEDENCODE"`
-		Decode           bool `json:"EXPECTEDDECODE"`
-		Verify           bool `json:"EXPECTEDVERIFY"`
-		Compression      bool `json:"EXPECTEDCOMPRESSION"`
-		KeyUsage         bool `json:"EXPECTEDKEYUSAGE"`
-		Unprefix         bool `json:"EXPECTEDUNPREFIX"`
-		ValidJSON        bool `json:"EXPECTEDVALIDJSON"`
-		B45Decode        bool `json:"EXPECTEDB45DECODE"`
-		PictureDecode    bool `json:"EXPECTEDPICTUREDECODE"`
-		ExpirationCheck  bool `json:"EXPECTEDEXPIRATIONCHECK"`
+		ValidObject      *bool `json:"EXPECTEDVALIDOBJECT"`
+		SchemaValidation *bool `json:"EXPECTEDSCHEMAVALIDATION"`
+		Encode           *bool `json:"EXPECTEDENCODE"`
+		Decode           *bool `json:"EXPECTEDDECODE"`
+		Verify           *bool `json:"EXPECTEDVERIFY"`
+		Compression      *bool `json:"EXPECTEDCOMPRESSION"`
+		KeyUsage         *bool `json:"EXPECTEDKEYUSAGE"`
+		Unprefix         *bool `json:"EXPECTEDUNPREFIX"`
+		ValidJSON        *bool `json:"EXPECTEDVALIDJSON"`
+		B45Decode        *bool `json:"EXPECTEDB45DECODE"`
+		PictureDecode    *bool `json:"EXPECTEDPICTUREDECODE"`
+		ExpirationCheck  *bool `json:"EXPECTEDEXPIRATIONCHECK"`
 	} `json:"EXPECTEDRESULTS"`
 }
 
@@ -73,8 +73,8 @@ func (r *rawTestdata) ExpiredFunc() func(time.Time) bool {
 }
 
 func testInteropDecode(t *testing.T, tt rawTestdata) {
-	if !tt.ExpectedResults.Decode {
-		return
+	if tt.ExpectedResults.Decode == nil {
+		return // test missing
 	}
 
 	certB, err := base64.StdEncoding.DecodeString(tt.Testctx.Certificate)
@@ -91,6 +91,12 @@ func testInteropDecode(t *testing.T, tt rawTestdata) {
 
 	d := &Decoder{Expired: tt.ExpiredFunc()}
 	unverified, err := d.Decode(tt.Prefix)
+	if !*tt.ExpectedResults.Decode && err == nil {
+		t.Fatalf("Decode unexpectedly did not fail")
+	}
+	if !*tt.ExpectedResults.Decode && err != nil {
+		return // decoding failed as expected
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,20 +114,35 @@ func testInteropDecode(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropUnprefix(t *testing.T, tt rawTestdata) {
-	if !tt.ExpectedResults.Unprefix {
-		return
+	if tt.ExpectedResults.Unprefix == nil {
+		return // test missing
 	}
-	base45 := unprefix(tt.Prefix)
+	base45, err := unprefix(tt.Prefix)
+	if !*tt.ExpectedResults.Unprefix && err == nil {
+		t.Fatalf("unprefix unexpectedly did not fail")
+	}
+	if !*tt.ExpectedResults.Unprefix && err != nil {
+		return // unprefix failed as expected
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	if diff := cmp.Diff(tt.Base45, base45); diff != "" {
 		t.Errorf("unprefix: unexpected diff: (-want +got):\n%s", diff)
 	}
 }
 
 func testInteropB45Decode(t *testing.T, tt rawTestdata) {
-	if !tt.ExpectedResults.B45Decode {
-		return
+	if tt.ExpectedResults.B45Decode == nil {
+		return // test missing
 	}
 	decoded, err := base45decode(tt.Base45)
+	if !*tt.ExpectedResults.B45Decode && err == nil {
+		t.Fatalf("base45decode unexpectedly did not fail")
+	}
+	if !*tt.ExpectedResults.B45Decode && err != nil {
+		return // decoding failed as expected
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,8 +172,8 @@ func testInteropB45Decode(t *testing.T, tt rawTestdata) {
 }
 
 func testInteropDecompress(t *testing.T, tt rawTestdata) {
-	if !tt.ExpectedResults.Compression {
-		return
+	if tt.ExpectedResults.Compression == nil {
+		return // test missing
 	}
 	compressed, err := hex.DecodeString(tt.Compressed)
 	if err != nil {
@@ -160,6 +181,12 @@ func testInteropDecompress(t *testing.T, tt rawTestdata) {
 	}
 
 	decompressed, err := decompress(compressed)
+	if !*tt.ExpectedResults.Compression && err == nil {
+		t.Fatalf("decompress unexpectedly did not fail")
+	}
+	if !*tt.ExpectedResults.Compression && err != nil {
+		return // decompress failed as expected
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,8 +220,8 @@ func (p *singleCertificateProvider) GetCertificate(country string, kid []byte) (
 }
 
 func testInteropVerify(t *testing.T, tt rawTestdata) {
-	if !tt.ExpectedResults.Verify {
-		return
+	if tt.ExpectedResults.Verify == nil {
+		return // test missing
 	}
 	cose, err := hex.DecodeString(tt.COSE)
 	if err != nil {
@@ -202,6 +229,9 @@ func testInteropVerify(t *testing.T, tt rawTestdata) {
 	}
 
 	unverified, err := decodeCOSE(cose)
+	if !*tt.ExpectedResults.Verify && err != nil {
+		return // verify failed as expected
+	}
 	if err != nil {
 		t.Fatalf("decodeCOSE(%x): %v", cose, err)
 	}
@@ -218,12 +248,20 @@ func testInteropVerify(t *testing.T, tt rawTestdata) {
 		t.Fatal(err)
 	}
 
-	if err := unverified.verify(tt.ExpiredFunc(), &singleCertificateProvider{
+	err = unverified.verify(tt.ExpiredFunc(), &singleCertificateProvider{
 		cert: cert,
 		kid:  kid,
-	}); err != nil {
+	})
+	if !*tt.ExpectedResults.Verify && err == nil {
+		t.Fatalf("Verify unexpectedly did not fail")
+	}
+	if !*tt.ExpectedResults.Verify && err != nil {
+		return // verify failed as expected
+	}
+	if err != nil {
 		t.Errorf("Verify: %v", err)
 	}
+
 }
 
 func testInteropExpectations(t *testing.T, tt rawTestdata) {
