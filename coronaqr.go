@@ -55,16 +55,16 @@ type Name struct {
 
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/DCC.Types.schema.json
 type VaccineRecord struct {
-	Target        string `cbor:"tg" json:"tg"`
-	Vaccine       string `cbor:"vp" json:"vp"`
-	Product       string `cbor:"mp" json:"mp"`
-	Manufacturer  string `cbor:"ma" json:"ma"`
-	Doses         int    `cbor:"dn" json:"dn"`
-	DoseSeries    int    `cbor:"sd" json:"sd"`
-	Date          string `cbor:"dt" json:"dt"`
-	Country       string `cbor:"co" json:"co"`
-	Issuer        string `cbor:"is" json:"is"`
-	CertificateID string `cbor:"ci" json:"ci"`
+	Target        string  `cbor:"tg" json:"tg"`
+	Vaccine       string  `cbor:"vp" json:"vp"`
+	Product       string  `cbor:"mp" json:"mp"`
+	Manufacturer  string  `cbor:"ma" json:"ma"`
+	Doses         float64 `cbor:"dn" json:"dn"` // int per the spec, but float64 e.g. in IE
+	DoseSeries    float64 `cbor:"sd" json:"sd"` // int per the spec, but float64 e.g. in IE
+	Date          string  `cbor:"dt" json:"dt"`
+	Country       string  `cbor:"co" json:"co"`
+	Issuer        string  `cbor:"is" json:"is"`
+	CertificateID string  `cbor:"ci" json:"ci"`
 }
 
 type TestRecord struct {
