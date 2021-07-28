@@ -73,6 +73,7 @@ type TestRecord struct {
 	//   "description": "Type of Test",
 	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-type"
 	// },
+	TestType string `cbor:"tt" json:"tt"`
 
 	// Name is the NAA Test Name
 	Name string `cbor:"nm" json:"nm"`
@@ -84,10 +85,12 @@ type TestRecord struct {
 	//   "type": "string",
 	//   "format": "date-time"
 	// },
+	SampleDatetime string `cbor:"sc" json:"sc"`
 	// "tr": {
 	//   "description": "Test Result",
 	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-result"
 	// },
+	TestResult    string `cbor:"tr" json:"tr"`
 	TestingCentre string `cbor:"tc" json:"tc"`
 	// Country of Test
 	Country       string `cbor:"co" json:"co"`
