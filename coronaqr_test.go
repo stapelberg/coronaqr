@@ -3,12 +3,15 @@ package coronaqr
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"path/filepath"
 	"testing"
 	"time"
@@ -316,5 +319,78 @@ func TestInterop(t *testing.T) {
 				testInteropExpectations(t, tt)
 			})
 		}
+	}
+}
+
+type singlePubkeyProvider struct {
+	pubKey crypto.PublicKey
+	kid    []byte
+}
+
+func (p *singlePubkeyProvider) GetPublicKey(country string, kid []byte) (crypto.PublicKey, error) {
+	if !bytes.Equal(p.kid, kid) {
+		return nil, fmt.Errorf("no such certificate (%s, %x): got %x", country, kid, p.kid)
+	}
+	return p.pubKey, nil
+}
+
+func TestLight(t *testing.T) {
+	// From https://github.com/admin-ch/CovidCertificate-SDK-Kotlin/blob/883f4b40b4a617485e3527d8dbe833070c6440b5/src/test/java/ch/admin/bag/covidcertificate/sdk/core/TestData.kt#L18
+	const lt1a = `LT1:6BFU90V10RDWT 9O60GO0000W50JB06H08CK34C/70YM8N34GB8WY0ABC VI597.FKMTKGVC*JC1A6/Q63W5KF6746TPCBEC7ZKW.CU2DNXO VD5$C JC3/DMP8$ILZEDZ CW.C9WE.Y9AY8+S9VIAI3D8WEVM8:S9C+9$PC5$CUZCY$5Y$527BJZH/HULXS+Q5M8R .S6YE2JCU.OR8ICBM+2QZFLK DHPHCS3Q6EK3A:RFH%HGEV:DE79K/8NM7MY.9VRKV5SP89HN2OED85SW.C8A9`
+
+	dec := &Decoder{
+		// The lt1a test data does not have an expiration date o_O.
+		Expired: func(time.Time) bool { return false },
+	}
+	unverified, err := dec.Decode(lt1a)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// https://github.com/admin-ch/CovidCertificate-SDK-Kotlin/blob/883f4b40b4a617485e3527d8dbe833070c6440b5/src/test/java/ch/admin/bag/covidcertificate/sdk/core/TestData.kt#L56
+	kid, err := base64.StdEncoding.DecodeString("AAABAQICAwM=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	curve := elliptic.P256()
+	x := new(big.Int)
+	y := new(big.Int)
+	// https://github.com/admin-ch/CovidCertificate-SDK-Kotlin/blob/883f4b40b4a617485e3527d8dbe833070c6440b5/src/test/java/ch/admin/bag/covidcertificate/sdk/core/TestData.kt#L57
+	decX, err := base64.StdEncoding.DecodeString("ceBrQgj3RwWzoxkv8/vApqkB7yJGfpBC9TjeIiXUR0U=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	x.SetBytes(decX)
+	// https://github.com/admin-ch/CovidCertificate-SDK-Kotlin/blob/883f4b40b4a617485e3527d8dbe833070c6440b5/src/test/java/ch/admin/bag/covidcertificate/sdk/core/TestData.kt#L58
+	decY, err := base64.StdEncoding.DecodeString("g9ufnhfjFLVIiQYeQWmQATN/CMiVbfAgFp/08+Qqv2s=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	y.SetBytes(decY)
+	pubKey := &ecdsa.PublicKey{
+		Curve: curve,
+		X:     x,
+		Y:     y,
+	}
+	decoded, err := unverified.Verify(&singlePubkeyProvider{
+		pubKey: pubKey,
+		kid:    kid,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decoded.Cert
+	want := CovidCert{
+		Version: "1.0.0",
+		PersonalName: Name{
+			FamilyName:    "Müller",
+			FamilyNameStd: "MUELLER",
+			GivenName:     "Céline",
+			GivenNameStd:  "CELINE",
+		},
+		DateOfBirth: "1943-02-01",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("unexpected Decode() output: diff (-want +got):\n%s", diff)
 	}
 }

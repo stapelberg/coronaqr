@@ -133,11 +133,12 @@ func calculateKid(encodedCert []byte) []byte {
 }
 
 func unprefix(prefixObject string) (string, error) {
-	if !strings.HasPrefix(prefixObject, "HC1:") {
-		return "", errors.New("data does not start with HC1: prefix")
+	if !strings.HasPrefix(prefixObject, "HC1:") &&
+		!strings.HasPrefix(prefixObject, "LT1:") {
+		return "", errors.New("data does not start with HC1: or LT1: prefix")
 	}
 
-	return strings.TrimPrefix(prefixObject, "HC1:"), nil
+	return strings.TrimPrefix(strings.TrimPrefix(prefixObject, "HC1:"), "LT1:"), nil
 }
 
 func base45decode(encoded string) ([]byte, error) {
@@ -223,7 +224,7 @@ func (u *unverifiedCOSE) verify(expired func(time.Time) bool, certprov PublicKey
 
 	alg := u.p.Alg // protected header
 	if alg == 0 {
-		// fall back to alg (4) from unprotected header
+		// fall back to alg (1) from unprotected header
 		if b, ok := u.v.Unprotected[uint64(1)]; ok {
 			alg = int(b.(int64))
 		}
@@ -281,15 +282,19 @@ func (u *unverifiedCOSE) verify(expired func(time.Time) bool, certprov PublicKey
 
 	expiration := time.Unix(u.claims.Exp, 0)
 	if expired(expiration) {
-		return fmt.Errorf("certificate has expired")
+		return fmt.Errorf("certificate expired at %v", expiration)
 	}
 
 	return nil
 }
 
 func (u *unverifiedCOSE) decoded() *Decoded {
+	cert := u.claims.HCert.DCC
+	if u.claims.LightCert.DCC.Version != "" {
+		cert = u.claims.LightCert.DCC
+	}
 	return &Decoded{
-		Cert:       u.claims.HCert.DCC,
+		Cert:       cert,
 		SignedBy:   u.cert,
 		IssuedAt:   time.Unix(u.claims.Iat, 0),
 		Expiration: time.Unix(u.claims.Exp, 0),
@@ -301,14 +306,15 @@ type hcert struct {
 }
 
 type claims struct {
-	Iss   string `cbor:"1,keyasint"`
-	Sub   string `cbor:"2,keyasint"`
-	Aud   string `cbor:"3,keyasint"`
-	Exp   int64  `cbor:"4,keyasint"`
-	Nbf   int    `cbor:"5,keyasint"`
-	Iat   int64  `cbor:"6,keyasint"`
-	Cti   []byte `cbor:"7,keyasint"`
-	HCert hcert  `cbor:"-260,keyasint"`
+	Iss       string `cbor:"1,keyasint"`
+	Sub       string `cbor:"2,keyasint"`
+	Aud       string `cbor:"3,keyasint"`
+	Exp       int64  `cbor:"4,keyasint"`
+	Nbf       int    `cbor:"5,keyasint"`
+	Iat       int64  `cbor:"6,keyasint"`
+	Cti       []byte `cbor:"7,keyasint"`
+	HCert     hcert  `cbor:"-260,keyasint"`
+	LightCert hcert  `cbor:"-250,keyasint"`
 }
 
 func decodeCOSE(coseData []byte) (*unverifiedCOSE, error) {
