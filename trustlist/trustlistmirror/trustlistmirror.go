@@ -6,11 +6,17 @@ package trustlistmirror
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"net/http"
 
 	"github.com/stapelberg/coronaqr"
@@ -51,6 +57,14 @@ var (
 	TrustlistSE = &List{
 		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_se.min.json",
 		decode: decodeDE,
+	}
+
+	// TrustlistCH refers to the mirrored version of the Swiss Trustlist.
+	TrustlistCH = &List{
+		// TODO: switch to a hcert-trustlist-mirror URL once available:
+		// https://github.com/section42/hcert-trustlist-mirror/issues/4
+		URL:    "https://raw.githubusercontent.com/cn-uofbasel/ch-dcc-keys/98cb38ef71a67a9e0dca078e2f6290c0105dead4/data/CH-20210715at1944-DCCkeys.json",
+		decode: decodeCH,
 	}
 )
 
@@ -191,6 +205,122 @@ func decodeNL(body []byte) (coronaqr.PublicKeyProvider, error) {
 			}
 			pubKeys[kidNormalized] = pub
 		}
+	}
+	return &pubkeyOnlyCertificateProvider{pubKeys: pubKeys}, nil
+}
+
+// see https://github.com/admin-ch/CovidCertificate-SDK-Kotlin/blob/883f4b40b4a617485e3527d8dbe833070c6440b5/src/main/java/ch/admin/bag/covidcertificate/sdk/core/models/trustlist/Jwk.kt#L28
+type chCertificate struct {
+	Alg string `json:"alg"`
+	Use string `json:"use"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+	Crv string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
+
+func pubKeyFromCHCertificate(cert chCertificate) (crypto.PublicKey, error) {
+	if cert.Alg == "ES256" {
+		if cert.Crv == "" || cert.X == "" || cert.Y == "" {
+			return nil, errors.New("ES256 key missing Crv, X or Y field")
+		}
+
+		var curve elliptic.Curve
+		switch cert.Crv {
+		case "P-224":
+			curve = elliptic.P224()
+		case "P-256":
+			curve = elliptic.P256()
+		case "P-384":
+			curve = elliptic.P384()
+		case "P-521":
+			curve = elliptic.P521()
+		default:
+			return nil, fmt.Errorf("unknown curve type %q", cert.Crv)
+		}
+
+		pubKey := &ecdsa.PublicKey{
+			Curve: curve,
+			X:     new(big.Int),
+			Y:     new(big.Int),
+		}
+
+		decX, err := base64.StdEncoding.DecodeString(cert.X)
+		if err != nil {
+			return nil, errors.New("ES256 key has malformed X")
+		}
+		pubKey.X.SetBytes(decX)
+
+		decY, err := base64.StdEncoding.DecodeString(cert.Y)
+		if err != nil {
+			return nil, errors.New("ES256 key has malformed X")
+		}
+		pubKey.Y.SetBytes(decY)
+
+		return pubKey, nil
+	} else if cert.Alg == "RS256" {
+		if cert.N == "" || cert.E == "" {
+			return nil, errors.New("RS256 key missing N or E field")
+		}
+
+		decE, err := base64.StdEncoding.DecodeString(cert.E)
+		if err != nil {
+			return nil, errors.New("RS256 key has malformed exponent")
+		}
+		if len(decE) < 4 {
+			ndata := make([]byte, 4)
+			copy(ndata[4-len(decE):], decE)
+			decE = ndata
+		}
+
+		pubKey := &rsa.PublicKey{
+			N: new(big.Int),
+			E: int(binary.BigEndian.Uint32(decE[:])),
+		}
+
+		decN, err := base64.StdEncoding.DecodeString(cert.N)
+		if err != nil {
+			return nil, errors.New("RS256 key has malformed N")
+		}
+		pubKey.N.SetBytes(decN)
+
+		return pubKey, nil
+	} else {
+		return nil, fmt.Errorf("unknown key algorithm %q", cert.Alg)
+	}
+}
+
+// The swiss trust list uses an almost-JWK format, but not quite: the Kty (key
+// type) field is not present, instead the Alg (algorithm) field is present.
+//
+// Unfortunately, none of the Go jwk implementations I tried could decode these
+// without modifications:
+//
+// - github.com/lestrrat-go/jwx/jwk needs the Kty field
+//
+// - github.com/mendsley/gojwk needs the Kty field and uses base64 URL encoding
+// instead of base64 standard encoding
+func decodeCH(body []byte) (coronaqr.PublicKeyProvider, error) {
+	certificates := make(map[string][]chCertificate)
+	if err := json.Unmarshal(body, &certificates); err != nil {
+		return nil, err
+	}
+	pubKeys := make(map[string]crypto.PublicKey)
+	for kid, certs := range certificates {
+		// Normalize kid, might be shortened (padding with = characters).
+		kidB, err := base64.StdEncoding.DecodeString(kid)
+		if err != nil {
+			return nil, err
+		}
+		kidNormalized := base64.StdEncoding.EncodeToString(kidB)
+
+		pubKey, err := pubKeyFromCHCertificate(certs[0])
+		if err != nil {
+			return nil, err
+		}
+
+		pubKeys[kidNormalized] = pubKey
 	}
 	return &pubkeyOnlyCertificateProvider{pubKeys: pubKeys}, nil
 }
