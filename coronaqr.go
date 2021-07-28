@@ -53,7 +53,6 @@ type Name struct {
 	GivenNameStd  string `cbor:"gnt" json:"gnt"`
 }
 
-
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/valuesets/disease-agent-targeted.json
 type DiseaseTargeted string
 
@@ -109,29 +108,29 @@ func (tr *TestResult) UnmarshalCBOR(data []byte) error {
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/DCC.Types.schema.json
 type VaccineRecord struct {
 	Target        DiseaseTargeted `cbor:"tg" json:"tg"`
-	Vaccine       string  `cbor:"vp" json:"vp"`
-	Product       string  `cbor:"mp" json:"mp"`
-	Manufacturer  string  `cbor:"ma" json:"ma"`
-	Doses         float64 `cbor:"dn" json:"dn"` // int per the spec, but float64 e.g. in IE
-	DoseSeries    float64 `cbor:"sd" json:"sd"` // int per the spec, but float64 e.g. in IE
-	Date          string  `cbor:"dt" json:"dt"`
-	Country       string  `cbor:"co" json:"co"`
-	Issuer        string  `cbor:"is" json:"is"`
-	CertificateID string  `cbor:"ci" json:"ci"`
+	Vaccine       string          `cbor:"vp" json:"vp"`
+	Product       string          `cbor:"mp" json:"mp"`
+	Manufacturer  string          `cbor:"ma" json:"ma"`
+	Doses         float64         `cbor:"dn" json:"dn"` // int per the spec, but float64 e.g. in IE
+	DoseSeries    float64         `cbor:"sd" json:"sd"` // int per the spec, but float64 e.g. in IE
+	Date          string          `cbor:"dt" json:"dt"`
+	Country       string          `cbor:"co" json:"co"`
+	Issuer        string          `cbor:"is" json:"is"`
+	CertificateID string          `cbor:"ci" json:"ci"`
 }
 
 type TestRecord struct {
-	Target DiseaseTargeted `cbor:"tg" json:"tg"`
-	TestType TestType `cbor:"tt" json:"tt"`
+	Target   DiseaseTargeted `cbor:"tg" json:"tg"`
+	TestType TestType        `cbor:"tt" json:"tt"`
 
 	// Name is the NAA Test Name
 	Name string `cbor:"nm" json:"nm"`
 
 	// Manufacturer is the RAT Test name and manufacturer.
-	Manufacturer string `cbor:"ma" json:"ma"`
-	SampleDatetime time.Time `cbor:"sc" json:"sc"`
-	TestResult TestResult `cbor:"tr" json:"tr"`
-	TestingCentre string `cbor:"tc" json:"tc"`
+	Manufacturer   string     `cbor:"ma" json:"ma"`
+	SampleDatetime time.Time  `cbor:"sc" json:"sc"`
+	TestResult     TestResult `cbor:"tr" json:"tr"`
+	TestingCentre  string     `cbor:"tc" json:"tc"`
 	// Country of Test
 	Country       string `cbor:"co" json:"co"`
 	Issuer        string `cbor:"is" json:"is"`
