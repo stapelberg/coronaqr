@@ -53,84 +53,42 @@ type Name struct {
 	GivenNameStd  string `cbor:"gnt" json:"gnt"`
 }
 
-// see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/valuesets/disease-agent-targeted.json
-type DiseaseTargeted string
-
-func (tg *DiseaseTargeted) UnmarshalCBOR(data []byte) error {
-	var id string
-	if err := cbor.Unmarshal(data, &id); err != nil {
-		return err
-	}
-	if id == "840539006" {
-		*tg = "COVID-19"
-	} else {
-		*tg = DiseaseTargeted("Unknown test target value: " + id)
-	}
-	return nil
-}
-
-// see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/valuesets/test-type.json
-type TestType string
-
-func (tt *TestType) UnmarshalCBOR(data []byte) error {
-	var id string
-	if err := cbor.Unmarshal(data, &id); err != nil {
-		return err
-	}
-	if id == "LP6464-4" {
-		*tt = "Nucleic acid amplification with probe detection"
-	} else if id == "LP217198-3" {
-		*tt = "Rapid immunoassay"
-	} else {
-		*tt = TestType("Unknown test type value: " + id)
-	}
-	return nil
-}
-
-// see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/valuesets/test-result.json
-type TestResult string
-
-func (tr *TestResult) UnmarshalCBOR(data []byte) error {
-	var id string
-	if err := cbor.Unmarshal(data, &id); err != nil {
-		return err
-	}
-	if id == "260415000" {
-		*tr = "Not detected"
-	} else if id == "260373001" {
-		*tr = "Detected"
-	} else {
-		*tr = TestResult("Unknown test result value: " + id)
-	}
-	return nil
-}
-
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema/blob/release/1.3.0/DCC.Types.schema.json
 type VaccineRecord struct {
-	Target        DiseaseTargeted `cbor:"tg" json:"tg"`
-	Vaccine       string          `cbor:"vp" json:"vp"`
-	Product       string          `cbor:"mp" json:"mp"`
-	Manufacturer  string          `cbor:"ma" json:"ma"`
-	Doses         float64         `cbor:"dn" json:"dn"` // int per the spec, but float64 e.g. in IE
-	DoseSeries    float64         `cbor:"sd" json:"sd"` // int per the spec, but float64 e.g. in IE
-	Date          string          `cbor:"dt" json:"dt"`
-	Country       string          `cbor:"co" json:"co"`
-	Issuer        string          `cbor:"is" json:"is"`
-	CertificateID string          `cbor:"ci" json:"ci"`
+	Target        string  `cbor:"tg" json:"tg"`
+	Vaccine       string  `cbor:"vp" json:"vp"`
+	Product       string  `cbor:"mp" json:"mp"`
+	Manufacturer  string  `cbor:"ma" json:"ma"`
+	Doses         float64 `cbor:"dn" json:"dn"` // int per the spec, but float64 e.g. in IE
+	DoseSeries    float64 `cbor:"sd" json:"sd"` // int per the spec, but float64 e.g. in IE
+	Date          string  `cbor:"dt" json:"dt"`
+	Country       string  `cbor:"co" json:"co"`
+	Issuer        string  `cbor:"is" json:"is"`
+	CertificateID string  `cbor:"ci" json:"ci"`
 }
 
 type TestRecord struct {
-	Target   DiseaseTargeted `cbor:"tg" json:"tg"`
-	TestType TestType        `cbor:"tt" json:"tt"`
+	Target string `cbor:"tg" json:"tg"`
+	// "tt": {
+	//   "description": "Type of Test",
+	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-type"
+	// },
 
 	// Name is the NAA Test Name
 	Name string `cbor:"nm" json:"nm"`
 
 	// Manufacturer is the RAT Test name and manufacturer.
-	Manufacturer   string     `cbor:"ma" json:"ma"`
-	SampleDatetime time.Time  `cbor:"sc" json:"sc"`
-	TestResult     TestResult `cbor:"tr" json:"tr"`
-	TestingCentre  string     `cbor:"tc" json:"tc"`
+	Manufacturer string `cbor:"ma" json:"ma"`
+	// "sc": {
+	//   "description": "Date/Time of Sample Collection",
+	//   "type": "string",
+	//   "format": "date-time"
+	// },
+	// "tr": {
+	//   "description": "Test Result",
+	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-result"
+	// },
+	TestingCentre string `cbor:"tc" json:"tc"`
 	// Country of Test
 	Country       string `cbor:"co" json:"co"`
 	Issuer        string `cbor:"is" json:"is"`
@@ -138,7 +96,7 @@ type TestRecord struct {
 }
 
 type RecoveryRecord struct {
-	Target DiseaseTargeted `cbor:"tg" json:"tg"`
+	Target string `cbor:"tg" json:"tg"`
 
 	//     "fr": {
 	//       "description": "ISO 8601 complete date of first positive NAA test result",
