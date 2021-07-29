@@ -68,30 +68,17 @@ type VaccineRecord struct {
 }
 
 type TestRecord struct {
-	Target string `cbor:"tg" json:"tg"`
-	// "tt": {
-	//   "description": "Type of Test",
-	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-type"
-	// },
+	Target   string `cbor:"tg" json:"tg"`
 	TestType string `cbor:"tt" json:"tt"`
 
 	// Name is the NAA Test Name
 	Name string `cbor:"nm" json:"nm"`
 
 	// Manufacturer is the RAT Test name and manufacturer.
-	Manufacturer string `cbor:"ma" json:"ma"`
-	// "sc": {
-	//   "description": "Date/Time of Sample Collection",
-	//   "type": "string",
-	//   "format": "date-time"
-	// },
+	Manufacturer   string `cbor:"ma" json:"ma"`
 	SampleDatetime string `cbor:"sc" json:"sc"`
-	// "tr": {
-	//   "description": "Test Result",
-	//   "$ref": "https://id.uvci.eu/DCC.ValueSets.schema.json#/$defs/test-result"
-	// },
-	TestResult    string `cbor:"tr" json:"tr"`
-	TestingCentre string `cbor:"tc" json:"tc"`
+	TestResult     string `cbor:"tr" json:"tr"`
+	TestingCentre  string `cbor:"tc" json:"tc"`
 	// Country of Test
 	Country       string `cbor:"co" json:"co"`
 	Issuer        string `cbor:"is" json:"is"`
