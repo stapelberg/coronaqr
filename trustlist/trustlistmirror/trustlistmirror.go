@@ -61,9 +61,7 @@ var (
 
 	// TrustlistCH refers to the mirrored version of the Swiss Trustlist.
 	TrustlistCH = &List{
-		// TODO: switch to a hcert-trustlist-mirror URL once available:
-		// https://github.com/section42/hcert-trustlist-mirror/issues/4
-		URL:    "https://raw.githubusercontent.com/cn-uofbasel/ch-dcc-keys/98cb38ef71a67a9e0dca078e2f6290c0105dead4/data/CH-20210715at1944-DCCkeys.json",
+		URL:    "https://raw.githubusercontent.com/section42/hcert-trustlist-mirror/main/trustlist_ch.min.json",
 		decode: decodeCH,
 	}
 )
