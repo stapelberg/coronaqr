@@ -88,27 +88,16 @@ type TestRecord struct {
 type RecoveryRecord struct {
 	Target string `cbor:"tg" json:"tg"`
 
-	//     "fr": {
-	//       "description": "ISO 8601 complete date of first positive NAA test result",
-	//       "type": "string",
-	//       "format": "date"
-	//     },
-
 	// Country of Test
 	Country string `cbor:"co" json:"co"`
 
 	Issuer string `cbor:"is" json:"is"`
 
-	//     "df": {
-	//       "description": "ISO 8601 complete date: Certificate Valid From",
-	//       "type": "string",
-	//       "format": "date"
-	//     },
-	//     "du": {
-	//       "description": "ISO 8601 complete date: Certificate Valid Until",
-	//       "type": "string",
-	//       "format": "date"
-	//     },
+	// FirstPositiveTest is the date (e.g. 2021-05-07) of the first positive NAA
+	// test result.
+	FirstPositiveTest string `cbor:"fr" json:"fr"`
+	ValidFrom         string `cbor:"df" json:"df"`
+	ValidUntil        string `cbor:"du" json:"du"`
 
 	CertificateID string `cbor:"ci" json:"ci"`
 }
