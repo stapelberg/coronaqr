@@ -34,6 +34,7 @@ type Decoded struct {
 	// has been successfully verified, if Verify() was used and the trustlist
 	// makes available certificates (as opposed to just public keys).
 	SignedBy *x509.Certificate
+	Kid      []byte
 }
 
 // see https://github.com/ehn-dcc-development/ehn-dcc-schema
@@ -277,6 +278,7 @@ func (u *unverifiedCOSE) decoded() *Decoded {
 		Cert:       cert,
 		SignedBy:   u.cert,
 		Issuer:     u.claims.Iss,
+		Kid:        u.p.Kid,
 		IssuedAt:   time.Unix(u.claims.Iat, 0),
 		Expiration: time.Unix(u.claims.Exp, 0),
 	}

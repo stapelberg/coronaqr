@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -109,6 +110,10 @@ func testInteropDecode(t *testing.T, tt rawTestdata) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if decoded.Kid == nil {
+		t.Fatalf("kid cannot be nil")
 	}
 
 	if diff := cmp.Diff(tt.JSON, decoded.Cert); diff != "" {
@@ -308,7 +313,7 @@ func TestInterop(t *testing.T) {
 		}
 		for _, match := range matches {
 			t.Run(match, func(t *testing.T) {
-				b, err := ioutil.ReadFile(match)
+				b, err := os.ReadFile(match)
 				if err != nil {
 					t.Fatalf("ReadFile(%s): %v", match, err)
 				}
