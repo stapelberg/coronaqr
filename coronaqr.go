@@ -26,6 +26,7 @@ import (
 // possibly verified.
 type Decoded struct {
 	Cert       CovidCert
+	Issuer     string
 	IssuedAt   time.Time
 	Expiration time.Time
 
@@ -275,6 +276,7 @@ func (u *unverifiedCOSE) decoded() *Decoded {
 	return &Decoded{
 		Cert:       cert,
 		SignedBy:   u.cert,
+		Issuer:     u.claims.Iss,
 		IssuedAt:   time.Unix(u.claims.Iat, 0),
 		Expiration: time.Unix(u.claims.Exp, 0),
 	}
