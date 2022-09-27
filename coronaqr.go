@@ -346,7 +346,7 @@ func (u *Unverified) Verify(certprov PublicKeyProvider) (*Decoded, error) {
 		}
 	}
 	if err := u.u.verify(expired, certprov); err != nil {
-		return nil, err
+		return u.u.decoded(), err
 	}
 
 	return u.u.decoded(), nil
