@@ -334,8 +334,8 @@ func (u *Unverified) SkipVerification() *Decoded {
 	return u.u.decoded()
 }
 
-// Verify checks the cryptographic signature and returns the verified EU Digital
-// COVID Certificate (EUDCC) or an error if verification fails.
+// Verify checks the cryptographic signature and returns the decoded EU Digital
+// COVID Certificate (EUDCC) and additionally an error if verification fails.
 //
 // certprov can optionally implement the CertificateProvider interface.
 func (u *Unverified) Verify(certprov PublicKeyProvider) (*Decoded, error) {
