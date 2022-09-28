@@ -17,6 +17,7 @@ import (
 func printCertificate(decoded *coronaqr.Decoded) {
 	fmt.Printf("\n")
 	fmt.Printf("COVID certificate:\n")
+	fmt.Printf("Issuer:     %v\n", decoded.Issuer)
 	fmt.Printf("Issued:     %v\n", decoded.IssuedAt)
 	fmt.Printf("Expiration: %v\n", decoded.Expiration)
 	fmt.Printf("Contents:   ")
