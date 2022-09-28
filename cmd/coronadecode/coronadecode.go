@@ -27,6 +27,7 @@ func printCertificate(decoded *coronaqr.Decoded) {
 func main() {
 	var (
 		verify    = flag.Bool("verify", false, "verify the signature in addition to decoding")
+		insecure  = flag.Bool("insecure", false, "don't abort program when encountering issues on verification (e.g. expired)")
 		trustlist = flag.String("trustlist",
 			"trustlistmirror/de",
 			"Trustlist to obtain certificates from. One of trustlistmirror/de, trustlistmirror/at or trustlistmirror/fr")
@@ -69,7 +70,11 @@ func main() {
 	log.Printf("trustlist %q initialized: %v", *trustlist, certProv)
 	decoded, err := unverified.Verify(certProv)
 	if err != nil {
-		log.Fatalf("verification failed: %v", err)
+		if *insecure {
+			log.Printf("verification failed: %v", err)
+		} else {
+			log.Fatalf("verification failed: %v", err)
+		}
 	}
 	if cert := decoded.SignedBy; cert == nil {
 		fmt.Printf("Cryptographic signature successfully verified\n")
